@@ -162,8 +162,8 @@ public class StudentModuleSelectionService {
                 studentModuleSelection.get().getSemesterNo());
 
             List<ProgrammePropDTO> programmePropResponse = programmeFeignClient.getProgrammeProps("SEMESTER",
-                studentModuleSelection.get().getAcademicYear(),
-                studentModuleSelection.get().getYearNo(),
+                studentModuleSelection.get().getAcademicYear()- studentModuleSelection.get().getYearNo() +1,
+                null,
                 studentModuleSelection.get().getSemesterNo(),
                 "factor");
 
