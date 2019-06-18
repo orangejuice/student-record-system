@@ -22,9 +22,7 @@ import org.springframework.web.client.RestTemplate;
 import javax.validation.Valid;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * REST controller for managing StudentProgression.
@@ -147,6 +145,38 @@ public class StudentProgressionResource {
                                              @RequestBody List<StudentModuleSelectionDTO> resultsList) {
         log.debug("REST request to calculate the QCA for student: {}", resultsList.get(resultsList.size() - 1).getStudentId());
         studentProgressionService.calculateQCA(resultsList, academicYear, academicSemester);
+        return ResponseEntity.ok().headers(HeaderUtil.createEntityUpdateAlert(ENTITY_NAME, "complete")).build();
+    }
+
+    @PostMapping("/student-progressions/calculateQCA-manual")
+    public ResponseEntity<Void> calculateQCA_Manual(@RequestParam("academicYear") Integer academicYear,
+                                             @RequestParam("academicSemester") Integer academicSemester) {
+        log.debug("REST request to calculate the QCA for all students");
+        List<StudentModuleSelectionDTO> allResultsDTO = studentModuleSelectionsFeignClient.findAll();
+        List<StudentModuleSelectionDTO> allResultForThisSemester = new ArrayList<>();
+        List<Long> studentIdList = new ArrayList<>();
+        for (StudentModuleSelectionDTO resultDTO: allResultsDTO) {
+            if(resultDTO.getAcademicSemester().equals(academicSemester) && resultDTO.getAcademicYear().equals(academicYear)){
+                allResultForThisSemester.add(resultDTO);
+                studentIdList.add(resultDTO.getStudentId());
+            }
+        }
+        Set<Long> set = new HashSet<>();
+        set.addAll(studentIdList);
+        studentIdList.clear();
+        studentIdList.addAll(set);
+
+        for (Long ID: studentIdList){
+            List<StudentModuleSelectionDTO> resultOfOneStudent = new ArrayList<>();
+            for(StudentModuleSelectionDTO studentModuleSelectionDTO: allResultForThisSemester){
+                if (studentModuleSelectionDTO.getStudentId().equals(ID)) {
+                    resultOfOneStudent.add(studentModuleSelectionDTO);
+                }
+            }
+            studentProgressionService.calculateQCA(resultOfOneStudent, academicYear, academicSemester);
+
+        }
+
         return ResponseEntity.ok().headers(HeaderUtil.createEntityUpdateAlert(ENTITY_NAME, "complete")).build();
     }
 

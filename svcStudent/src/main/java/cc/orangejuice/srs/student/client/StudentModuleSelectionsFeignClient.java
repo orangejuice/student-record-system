@@ -13,7 +13,7 @@ import java.util.List;
 @RestController
 public interface StudentModuleSelectionsFeignClient {
     @RequestMapping("/api/student-module-selections")
-    Collection<StudentModuleSelectionDTO> findAll();
+    List<StudentModuleSelectionDTO> findAll();
 
     @GetMapping("/api/student-module-selections/query")
     List<StudentModuleSelectionDTO> getStudentModuleSelections(
