@@ -20,4 +20,8 @@ public interface StudentModuleSelectionsFeignClient {
         @RequestParam("studentId") Long studentId,
         @RequestParam("academicYear") Integer academicYear,
         @RequestParam("yearNo") Integer yearNo);
+    @GetMapping("/api/student-module-selections/queryAcademicYearAndAcademicSemester")
+    List<StudentModuleSelectionDTO> getStudentModuleSelectionsByAcademicYearAndAcademicSemester(
+        @RequestParam("academicYear") Integer academicYear,
+        @RequestParam("academicSemester") Integer academicSemester);
 }

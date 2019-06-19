@@ -4,7 +4,8 @@
             "null": "",
             "SEMESTER": "SEMESTER",
             "YEAR": "YEAR",
-            "PART": "PART"
+            "PART": "PART",
+            "UP_TO_DATE": "UP_TO_DATE"
         }
     }
 }

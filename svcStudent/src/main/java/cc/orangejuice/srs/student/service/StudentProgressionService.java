@@ -4,7 +4,6 @@ import cc.orangejuice.srs.student.client.ProgrammeFeignClient;
 import cc.orangejuice.srs.student.client.StudentModuleSelectionsFeignClient;
 import cc.orangejuice.srs.student.client.dto.ProgrammePropDTO;
 import cc.orangejuice.srs.student.client.dto.StudentModuleSelectionDTO;
-import cc.orangejuice.srs.student.domain.Student;
 import cc.orangejuice.srs.student.domain.StudentProgression;
 import cc.orangejuice.srs.student.domain.enumeration.ProgressDecision;
 import cc.orangejuice.srs.student.domain.enumeration.ProgressType;
@@ -17,7 +16,6 @@ import cc.orangejuice.srs.student.service.mapper.StudentProgressionMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,8 +23,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 
-import javax.activation.ActivationDataFlavor;
-import javax.swing.text.html.Option;
 import java.text.DecimalFormat;
 import java.util.*;
 
@@ -50,6 +46,7 @@ public class StudentProgressionService {
     private final StudentService studentService;
 
     private final StudentMapper studentMapper;
+    public static List<ProgrammePropDTO> partList;
 
     @Autowired
     private StudentRepository studentRepository;
@@ -91,7 +88,7 @@ public class StudentProgressionService {
     public Page<StudentProgressionDTO> findAll(Pageable pageable) {
         log.debug("Request to get all StudentProgressions");
         return studentProgressionRepository.findAll(pageable)
-                .map(studentProgressionMapper::toDto);
+            .map(studentProgressionMapper::toDto);
     }
 
 
@@ -105,7 +102,7 @@ public class StudentProgressionService {
     public Optional<StudentProgressionDTO> findOne(Long id) {
         log.debug("Request to get StudentProgression : {}", id);
         return studentProgressionRepository.findById(id)
-                .map(studentProgressionMapper::toDto);
+            .map(studentProgressionMapper::toDto);
     }
 
     /**
@@ -136,15 +133,15 @@ public class StudentProgressionService {
 
 
         // calculate semester QCA
-        if(isDuplicateSemesterQCA(resultsList, academicYear, academicSemester)) return;
+        if (isDuplicateSemesterQCA(resultsList, academicYear, academicSemester)) return;
         Double semesterQCA = calculateSemesterQCA(resultsList, academicYear, academicSemester);
         insertSemesterQCAForStudent(semesterQCA, academicYear, academicSemester, resultsList.get(resultsList.size() - 1).getStudentId(), null);
 
-        // if it is the end of the part
+        // if it is the end of the part (check the year of last result record)
         Integer partNo = isEndOfPart(resultsList, academicYear);
         if (partNo > 0) {
             // if yes, calculate cumulative QCA and generate progression decision
-            if(isDuplicateCumulativeQCA(resultsList, academicYear, partNo)) return;
+            if (isDuplicateCumulativeQCA(resultsList, academicYear, partNo)) return;
             Double cumulativeQCA = calculateCumulativeQCA(resultsList);
             log.debug("ready to make progression decision with cumulative QCA: {} and academicYear: {}", cumulativeQCA, academicYear);
             ProgressDecision progressDecisionEnum = makeProgressionDecision(cumulativeQCA, resultsList);
@@ -155,17 +152,58 @@ public class StudentProgressionService {
 
 
     }
+    public void calculateQCA_semester(List<StudentModuleSelectionDTO> resultsList, Integer academicYear, Integer academicSemester) {
+        log.debug("Request to calculate QCA for student: {}", resultsList.get(resultsList.size() - 1).getStudentId());
+
+
+        // calculate semester QCA
+        if (isDuplicateSemesterQCA(resultsList, academicYear, academicSemester)) return;
+        Double semesterQCA = calculateSemesterQCA(resultsList, academicYear, academicSemester);
+        insertSemesterQCAForStudent(semesterQCA, academicYear, academicSemester, resultsList.get(resultsList.size() - 1).getStudentId(), null);
+
+        // if it is the end of the part (check the year of last result record)
+//        Integer partNo = isEndOfPart(resultsList, academicYear);
+//        if (partNo > 0) {
+//            // if yes, calculate cumulative QCA and generate progression decision
+//            if (isDuplicateCumulativeQCA(resultsList, academicYear, partNo)) return;
+//            Double cumulativeQCA = calculateCumulativeQCA(resultsList);
+//            log.debug("ready to make progression decision with cumulative QCA: {} and academicYear: {}", cumulativeQCA, academicYear);
+//            ProgressDecision progressDecisionEnum = makeProgressionDecision(cumulativeQCA, resultsList);
+//            insertCumulativeQCAForStudent(cumulativeQCA, partNo, academicYear, academicSemester, resultsList.get(resultsList.size() - 1).getStudentId(), progressDecisionEnum);
+//        }
+
+        // leave graduation for now
+
+
+    }
+    public void calculateQCA_accumulated(List<StudentModuleSelectionDTO> resultsList) {
+        log.debug("Request to calculate QCA for student: {}", resultsList.get(resultsList.size() - 1).getStudentId());
+
+
+        Double cumulativeQCA = calculateCumulativeQCA(resultsList);
+        Long studentId = resultsList.get(resultsList.size() - 1).getStudentId();
+        log.debug("ready to insert lastest cumulative_QCA for student: {}, QCA: {}", studentId, cumulativeQCA);
+        StudentProgressionDTO studentProgressionDTO = new StudentProgressionDTO();
+        studentProgressionDTO.setQca(cumulativeQCA);
+        studentProgressionDTO.setStudentId(studentId);
+        studentProgressionDTO.setProgressType(ProgressType.UP_TO_DATE);
+        save(studentProgressionDTO);
+
+
+        // leave graduation for now
+
+
+    }
 
     // how to distinguish part 1 and part 2 ?
     private Integer isEndOfPart(List<StudentModuleSelectionDTO> resultsList, Integer academicYear) {
         log.debug("Request to check if the result list is at the end of the part for academic Year: {}", academicYear);
-        List<ProgrammePropDTO> partList = programmeFeignClient.getProgrammeProps("YEAR", academicYear, null, null, "part");
         Integer isEndOfPart = 0;
 
         for (int i = 0; i < partList.size(); i++) {
             // if the results end in the end of semester
             if (resultsList.get(resultsList.size() - 1).getYearNo() == partList.get(i).getForYearNo() &&
-                    resultsList.get(resultsList.size() - 1).getSemesterNo() == 2) {
+                resultsList.get(resultsList.size() - 1).getSemesterNo() == 2) {
                 // if this is the end of the part (if it has multiple parts)
                 if (partList.get(i).getValue() != partList.get(i + 1).getValue()) {
                     isEndOfPart = Integer.parseInt(partList.get(i).getValue());
@@ -206,7 +244,7 @@ public class StudentProgressionService {
         studentProgressionDTO.setProgressType(ProgressType.SEMESTER);
         if (progressDecisionEnum != null) studentProgressionDTO.setProgressDecision(progressDecisionEnum);
         log.debug("request to save student semester qca to student progression table. studentId: {}, academicYear: {}, academicSemester: {}, semesterQCA: {}",
-                studentId, academicYear, academicSemester, semesterQCA);
+            studentId, academicYear, academicSemester, semesterQCA);
         save(studentProgressionDTO);
     }
 
@@ -247,7 +285,7 @@ public class StudentProgressionService {
         Optional<StudentDTO> student = studentService.findOne(resultsList.get(resultsList.size() - 1).getStudentId());
         List<StudentProgression> studentProgressionDTOS = studentProgressionRepository.findAllByStudent(studentMapper.toEntity(student.get()));
 
-        for(StudentProgression studentProgression: studentProgressionDTOS) {
+        for (StudentProgression studentProgression : studentProgressionDTOS) {
             if (studentProgression.getForAcademicYear() == academicSemester && studentProgression.getForAcademicYear() == academicYear) {
                 // the result will not be inserted if the result has already existed in the db
                 log.debug("student {} semester result exists in academicYear : {} and academicSemester: {}. can not insert new record and rollback.",
@@ -267,11 +305,11 @@ public class StudentProgressionService {
         Optional<StudentDTO> student = studentService.findOne(resultsList.get(resultsList.size() - 1).getStudentId());
         List<StudentProgression> studentProgressionDTOS = studentProgressionRepository.findAllByStudent(studentMapper.toEntity(student.get()));
 
-        for(StudentProgression studentProgression: studentProgressionDTOS) {
+        for (StudentProgression studentProgression : studentProgressionDTOS) {
             if (studentProgression.getForPartNo() == partNo && studentProgression.getForAcademicYear() == academicYear) {
                 // the result will not be inserted if the result has already existed in the db
                 log.debug("student {} cumulative QCA results exist in academicYear : {} and partNo: {}. can not insert new record and rollback.",
-                    resultsList.get(resultsList.size() - 1).getStudentId(),academicYear, partNo);
+                    resultsList.get(resultsList.size() - 1).getStudentId(), academicYear, partNo);
                 return true;
             }
         }
@@ -314,7 +352,7 @@ public class StudentProgressionService {
                     if (gradeRecord.getYearNo() == 1 && gradeRecord.getSemesterNo() == 2)
                         isLearnedSem2 = true;
                 }
-                if(isLearnedSem1 == true && isLearnedSem2 == true) break;
+                if (isLearnedSem1 == true && isLearnedSem2 == true) break;
             }
             if (isLearnedSem1 == true && isLearnedSem2 == true) {
                 swapWorstModule(listGradeOfThisStudent, 4);

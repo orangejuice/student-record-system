@@ -1,5 +1,6 @@
 package cc.orangejuice.srs.student.web.rest;
 
+import cc.orangejuice.srs.student.client.ProgrammeFeignClient;
 import cc.orangejuice.srs.student.client.StudentModuleSelectionsFeignClient;
 import cc.orangejuice.srs.student.client.dto.StudentModuleSelectionDTO;
 import cc.orangejuice.srs.student.service.StudentProgressionService;
@@ -36,6 +37,9 @@ public class StudentProgressionResource {
     private static final String ENTITY_NAME = "svcStudentStudentProgression";
 
     private final StudentProgressionService studentProgressionService;
+    @Autowired
+    private final ProgrammeFeignClient programmeFeignClient;
+
 
     @Autowired
     private StudentModuleSelectionsFeignClient studentModuleSelectionsFeignClient;
@@ -44,8 +48,9 @@ public class StudentProgressionResource {
     @Qualifier("vanillaRestTemplate")
     private RestTemplate restTemplate;
 
-    public StudentProgressionResource(StudentProgressionService studentProgressionService) {
+    public StudentProgressionResource(StudentProgressionService studentProgressionService, ProgrammeFeignClient programmeFeignClient) {
         this.studentProgressionService = studentProgressionService;
+        this.programmeFeignClient = programmeFeignClient;
     }
 
     /**
@@ -63,8 +68,8 @@ public class StudentProgressionResource {
         }
         StudentProgressionDTO result = studentProgressionService.save(studentProgressionDTO);
         return ResponseEntity.created(new URI("/api/student-progressions/" + result.getId()))
-                .headers(HeaderUtil.createEntityCreationAlert(ENTITY_NAME, result.getId().toString()))
-                .body(result);
+            .headers(HeaderUtil.createEntityCreationAlert(ENTITY_NAME, result.getId().toString()))
+            .body(result);
     }
 
     /**
@@ -84,8 +89,8 @@ public class StudentProgressionResource {
         }
         StudentProgressionDTO result = studentProgressionService.save(studentProgressionDTO);
         return ResponseEntity.ok()
-                .headers(HeaderUtil.createEntityUpdateAlert(ENTITY_NAME, studentProgressionDTO.getId().toString()))
-                .body(result);
+            .headers(HeaderUtil.createEntityUpdateAlert(ENTITY_NAME, studentProgressionDTO.getId().toString()))
+            .body(result);
     }
 
     /**
@@ -144,41 +149,59 @@ public class StudentProgressionResource {
                                              @RequestParam("academicSemester") Integer academicSemester,
                                              @RequestBody List<StudentModuleSelectionDTO> resultsList) {
         log.debug("REST request to calculate the QCA for student: {}", resultsList.get(resultsList.size() - 1).getStudentId());
+        StudentProgressionService.partList = programmeFeignClient.getProgrammeProps("YEAR", academicYear, null, null, "part");
         studentProgressionService.calculateQCA(resultsList, academicYear, academicSemester);
         return ResponseEntity.ok().headers(HeaderUtil.createEntityUpdateAlert(ENTITY_NAME, "complete")).build();
     }
 
     @PostMapping("/student-progressions/calculateQCA-manual")
     public ResponseEntity<Void> calculateQCA_Manual(@RequestParam("academicYear") Integer academicYear,
-                                             @RequestParam("academicSemester") Integer academicSemester) {
+                                                    @RequestParam("academicSemester") Integer academicSemester) {
         log.debug("REST request to calculate the QCA for all students");
+        StudentProgressionService.partList = programmeFeignClient.getProgrammeProps("YEAR", academicYear, null, null, "part");
         List<StudentModuleSelectionDTO> allResultsDTO = studentModuleSelectionsFeignClient.findAll();
-        List<StudentModuleSelectionDTO> allResultForThisSemester = new ArrayList<>();
+
         List<Long> studentIdList = new ArrayList<>();
+        //1. Calc semesterQCA
+        List<StudentModuleSelectionDTO> allResultForThisSemester = new ArrayList<>();
+        //Filter to get ONLY RESULTs of this semester
         for (StudentModuleSelectionDTO resultDTO: allResultsDTO) {
             if(resultDTO.getAcademicSemester().equals(academicSemester) && resultDTO.getAcademicYear().equals(academicYear)){
                 allResultForThisSemester.add(resultDTO);
                 studentIdList.add(resultDTO.getStudentId());
             }
         }
+
+        //Make a list of unique studentID
         Set<Long> set = new HashSet<>();
         set.addAll(studentIdList);
         studentIdList.clear();
         studentIdList.addAll(set);
 
-        for (Long ID: studentIdList){
+        for (Long ID : studentIdList) {
             List<StudentModuleSelectionDTO> resultOfOneStudent = new ArrayList<>();
-            for(StudentModuleSelectionDTO studentModuleSelectionDTO: allResultForThisSemester){
+            //2. Calc accumulativeQCA, now resultOfOneStudent includes ALL SEMESTERs
+            for (StudentModuleSelectionDTO studentModuleSelectionDTO : allResultsDTO) {
                 if (studentModuleSelectionDTO.getStudentId().equals(ID)) {
                     resultOfOneStudent.add(studentModuleSelectionDTO);
                 }
             }
-            studentProgressionService.calculateQCA(resultOfOneStudent, academicYear, academicSemester);
+            studentProgressionService.calculateQCA_accumulated(resultOfOneStudent);
+            //1. Calc semesterQCA, therefore resultOfOneStudent only includes 1 semester
+            resultOfOneStudent.clear();
+            for (StudentModuleSelectionDTO studentModuleSelectionDTO : allResultForThisSemester) {
+                if (studentModuleSelectionDTO.getStudentId().equals(ID)) {
+                    resultOfOneStudent.add(studentModuleSelectionDTO);
+                }
+            }
+            studentProgressionService.calculateQCA_semester(resultOfOneStudent, academicYear, academicSemester);
 
         }
 
         return ResponseEntity.ok().headers(HeaderUtil.createEntityUpdateAlert(ENTITY_NAME, "complete")).build();
     }
+
+
 
 
 }

@@ -153,6 +153,15 @@ public class StudentModuleSelectionResource {
         List<StudentModuleSelectionDTO> studentModuleSelectionDTO = studentModuleSelectionService.findAllStudentSelectionsByYear(studentId, academicYear, yearNo);
         return studentModuleSelectionDTO;
     }
+    @GetMapping(value = "/student-module-selections/queryAcademicYearAndAcademicSemester")
+    public List<StudentModuleSelectionDTO> getStudentModuleSelectionsByAcademicYearAndAcademicSemester(
+        @RequestParam("academicYear") Integer academicYear,
+        @RequestParam("academicSemester") Integer academicSemester) {
+        log.debug("REST request to get studentModuleSelection for all students in academicYear : {}, academicSemester: {}",
+            academicYear, academicSemester);
+        List<StudentModuleSelectionDTO> studentModuleSelectionDTO = studentModuleSelectionService.findAllStudentSelectionsByAcademicYearAndAcademicSemester(academicYear, academicSemester);
+        return studentModuleSelectionDTO;
+    }
 
 
     /*

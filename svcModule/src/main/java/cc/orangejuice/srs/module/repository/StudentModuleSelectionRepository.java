@@ -34,6 +34,7 @@ public interface StudentModuleSelectionRepository extends JpaRepository<StudentM
     Optional<StudentModuleSelection> findAllByStudentIdAndAcademicYearAndYearNoAndSemesterNo(@Param("studentId") Long studentId, @Param("academicYear") Integer academicYear, @Param("yearNo") Integer yearNo, @Param("semesterNo") Integer semesterNo);
 
     List<StudentModuleSelection> findAllByStudentIdAndAcademicYearAndYearNo(@Param("studentId") Long studentId, @Param("academicYear") Integer academicYear, @Param("yearNo") Integer yearNo);
+    List<StudentModuleSelection> findAllByAcademicYearAndAcademicSemester(@Param("academicYear") Integer academicYear, @Param("academicSemester") Integer academicSemester);
 
     List<StudentModuleSelection> findAllByStudentIdAndSemesterNo(@Param("studentId") Long studentId, @Param("semesterNo") Integer semesterNo);
 
