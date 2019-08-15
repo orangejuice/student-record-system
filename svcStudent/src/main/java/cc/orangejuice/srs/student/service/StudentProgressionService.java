@@ -15,13 +15,11 @@ import cc.orangejuice.srs.student.service.mapper.StudentMapper;
 import cc.orangejuice.srs.student.service.mapper.StudentProgressionMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 
 import java.text.DecimalFormat;
 import java.util.*;
@@ -152,35 +150,51 @@ public class StudentProgressionService {
 
 
     }
-    public void calculateQCA_semester(List<StudentModuleSelectionDTO> resultsList, Integer academicYear, Integer academicSemester) {
+
+    public void calculateQCA_semester(List<StudentModuleSelectionDTO> resultsList, Integer academicYear,
+                                      Integer academicSemester) {
         log.debug("Request to calculate QCA for student: {}", resultsList.get(resultsList.size() - 1).getStudentId());
+        Double semesterQCS = 0.00;
+        Double attemptedHours = 0.00;
 
+        for (StudentModuleSelectionDTO oneResult : resultsList) {
+            if (oneResult.getAcademicYear().equals(academicYear) && oneResult.getAcademicSemester().equals(academicSemester)) {
+                semesterQCS += oneResult.getQcs();
+                attemptedHours += oneResult.getCreditHour() - getNQH();
+            }
+        }
 
-        // calculate semester QCA
-        if (isDuplicateSemesterQCA(resultsList, academicYear, academicSemester)) return;
-        Double semesterQCA = calculateSemesterQCA(resultsList, academicYear, academicSemester);
-        insertSemesterQCAForStudent(semesterQCA, academicYear, academicSemester, resultsList.get(resultsList.size() - 1).getStudentId(), null);
+        log.debug("semesterQCS is {} and attemptedHours is {}", semesterQCS, attemptedHours);
+        log.debug("THe semester QCA for student {} at academicYear {} and academicSemester {} is {}",
+            resultsList.get(0).getStudentId(), academicYear,
+            academicSemester, semesterQCS / attemptedHours);
 
-        // if it is the end of the part (check the year of last result record)
-//        Integer partNo = isEndOfPart(resultsList, academicYear);
-//        if (partNo > 0) {
-//            // if yes, calculate cumulative QCA and generate progression decision
-//            if (isDuplicateCumulativeQCA(resultsList, academicYear, partNo)) return;
-//            Double cumulativeQCA = calculateCumulativeQCA(resultsList);
-//            log.debug("ready to make progression decision with cumulative QCA: {} and academicYear: {}", cumulativeQCA, academicYear);
-//            ProgressDecision progressDecisionEnum = makeProgressionDecision(cumulativeQCA, resultsList);
-//            insertCumulativeQCAForStudent(cumulativeQCA, partNo, academicYear, academicSemester, resultsList.get(resultsList.size() - 1).getStudentId(), progressDecisionEnum);
-//        }
+        DecimalFormat df = new DecimalFormat("#.##");
+        Double semesterQCA = Double.parseDouble(df.format(semesterQCS / attemptedHours));
 
-        // leave graduation for now
-
-
+        StudentProgressionDTO studentProgressionDTO = new StudentProgressionDTO();
+        studentProgressionDTO.setForAcademicYear(academicYear);
+        studentProgressionDTO.setForAcademicSemester(academicSemester);
+        studentProgressionDTO.setQca(semesterQCA);
+        studentProgressionDTO.setStudentId(resultsList.get(resultsList.size() - 1).getStudentId());
+        studentProgressionDTO.setProgressType(ProgressType.SEMESTER);
+        save(studentProgressionDTO);
     }
-    public void calculateQCA_accumulated(List<StudentModuleSelectionDTO> resultsList) {
+
+    private void calculateQCA_cumulative(List<StudentModuleSelectionDTO> resultsList) {
         log.debug("Request to calculate QCA for student: {}", resultsList.get(resultsList.size() - 1).getStudentId());
 
+        Double qcs = 0.00;
+        Double attemptedHour = 0.00;
+        for (StudentModuleSelectionDTO studentModuleSelectionDTO : resultsList) {
+            qcs += studentModuleSelectionDTO.getQcs();
+            attemptedHour += studentModuleSelectionDTO.getCreditHour() - getNQH();
+        }
 
-        Double cumulativeQCA = calculateCumulativeQCA(resultsList);
+        log.debug("The cumulative QCA is {}", qcs / attemptedHour);
+        DecimalFormat df = new DecimalFormat("#.##");
+        Double cumulativeQCA = Double.parseDouble(df.format(qcs / attemptedHour));
+
         Long studentId = resultsList.get(resultsList.size() - 1).getStudentId();
         log.debug("ready to insert lastest cumulative_QCA for student: {}, QCA: {}", studentId, cumulativeQCA);
         StudentProgressionDTO studentProgressionDTO = new StudentProgressionDTO();
@@ -188,11 +202,6 @@ public class StudentProgressionService {
         studentProgressionDTO.setStudentId(studentId);
         studentProgressionDTO.setProgressType(ProgressType.UP_TO_DATE);
         save(studentProgressionDTO);
-
-
-        // leave graduation for now
-
-
     }
 
     // how to distinguish part 1 and part 2 ?
@@ -369,6 +378,65 @@ public class StudentProgressionService {
             } else {
                 return ProgressDecision.FAIL_NO_REPEAT;
             }
+        }
+    }
+
+    /**
+     * BE SURE: the SEMESTER of the last item in the list MUST be SEMESTER 2
+     *
+     * @param resultOfOneStudent
+     * @param academicYear
+     * @param academicSemester
+     */
+    public void makeDecision(List<StudentModuleSelectionDTO> resultOfOneStudent, Integer academicYear, Integer academicSemester) {
+        Integer partNo = isEndOfPart(resultOfOneStudent, academicYear);
+        if (partNo > 0) {
+            // if yes, calculate cumulative QCA and generate progression decision
+//            if (isDuplicateCumulativeQCA(resultOfOneStudent, academicYear, partNo)) return;
+            Double cumulativeQCA = calculateCumulativeQCA(resultOfOneStudent);
+            log.debug("ready to make progression decision with cumulative QCA: {} and academicYear: {}", cumulativeQCA, academicYear);
+            ProgressDecision progressDecisionEnum = makeProgressionDecision(cumulativeQCA, resultOfOneStudent);
+            insertCumulativeQCAForStudent(cumulativeQCA, partNo, academicYear, academicSemester, resultOfOneStudent.get(resultOfOneStudent.size() - 1).getStudentId(), progressDecisionEnum);
+        }
+    }
+
+    public void calculateQCA_Manual(Integer academicYear, Integer academicSemester) {
+        //1. Get modules in this year
+        List<StudentModuleSelectionDTO> allResultsDTO = studentModuleSelectionsFeignClient.findAll();
+        List<StudentModuleSelectionDTO> allResultForThisSemester = new ArrayList<>();
+        List<Long> studentIdList = new ArrayList<>();
+        //Filter to get ONLY RESULTs of this semester
+        for (StudentModuleSelectionDTO resultDTO : allResultsDTO) {
+            if (resultDTO.getAcademicSemester().equals(academicSemester)) {
+                if (resultDTO.getAcademicYear().equals(academicYear)) {
+                    allResultForThisSemester.add(resultDTO);
+                    studentIdList.add(resultDTO.getStudentId());
+                }
+            }
+        }
+
+        //2. Make a list of unique studentID by transforming list->set->list
+        Set<Long> set = new HashSet<>(studentIdList);
+        studentIdList.clear();
+        studentIdList.addAll(set);
+
+        for (Long ID : studentIdList) {
+            List<StudentModuleSelectionDTO> resultOfOneStudent = new ArrayList<>();
+            //3.1. Calc accumulativeQCA, now resultOfOneStudent includes ALL SEMESTERs
+            for (StudentModuleSelectionDTO studentModuleSelectionDTO : allResultsDTO) {
+                if (studentModuleSelectionDTO.getStudentId().equals(ID)) {
+                    resultOfOneStudent.add(studentModuleSelectionDTO);
+                }
+            }
+            calculateQCA_cumulative(resultOfOneStudent);
+            //3.2. Calc semesterQCA, therefore resultOfOneStudent only includes 1 semester
+            resultOfOneStudent.clear();
+            for (StudentModuleSelectionDTO studentModuleSelectionDTO : allResultForThisSemester) {
+                if (studentModuleSelectionDTO.getStudentId().equals(ID)) {
+                    resultOfOneStudent.add(studentModuleSelectionDTO);
+                }
+            }
+            calculateQCA_semester(resultOfOneStudent, academicYear, academicSemester);
         }
     }
 }

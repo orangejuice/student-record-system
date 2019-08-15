@@ -2,6 +2,7 @@
 //
 //import cc.orangejuice.srs.student.SvcStudentApp;
 //
+//import cc.orangejuice.srs.student.client.ProgrammeFeignClient;
 //import cc.orangejuice.srs.student.config.SecurityBeanOverrideConfiguration;
 //
 //import cc.orangejuice.srs.student.domain.StudentProgression;
@@ -89,6 +90,9 @@
 //    @Autowired
 //    private Validator validator;
 //
+//    @Autowired
+//    private ProgrammeFeignClient programmeFeignClient;
+//
 //    private MockMvc restStudentProgressionMockMvc;
 //
 //    private StudentProgression studentProgression;
@@ -96,7 +100,7 @@
 //    @Before
 //    public void setup() {
 //        MockitoAnnotations.initMocks(this);
-//        final StudentProgressionResource studentProgressionResource = new StudentProgressionResource(studentProgressionService);
+//        final StudentProgressionResource studentProgressionResource = new StudentProgressionResource(studentProgressionService, programmeFeignClient);
 //        this.restStudentProgressionMockMvc = MockMvcBuilders.standaloneSetup(studentProgressionResource)
 //            .setCustomArgumentResolvers(pageableArgumentResolver)
 //            .setControllerAdvice(exceptionTranslator)

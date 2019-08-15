@@ -1,6 +1,4 @@
-//@microservice(svcStudent)
 entity Student {
-    /** generated value */
     studentNumber String,
     firstName String required,
     lastName String required,
@@ -41,11 +39,8 @@ entity StudentProgression{
     forAcademicYear Integer
     forAcademicSemester Integer
     forPartNo Integer
-    /** academicSemester -> qca */
     qca Double required
-    /** 1...n:part n  , academicYear(finish of a part) -> cumulativeQcaForPart */
     progressType ProgressType
-    /** academicYear -> progressDecision*/
     progressDecision ProgressDecision
 }
 
@@ -53,10 +48,6 @@ enum ProgressType{
     SEMESTER, YEAR, PART
 }
 
-/** SUSPENSION: pause progress, won't be registered in next semester
- *  FAIL_CAN_REPEAT: after repeat successful will be changed into PASS
- *  FAIL_NO_REPEAT: won't be registered into next semester, need to learn modules of this year again
- */
 enum ProgressDecision{
     PASS, SUSPENSION, FAIL_CAN_REPEAT, FAIL_NO_REPEAT
 }
@@ -86,7 +77,6 @@ entity ProgrammeProp{
     type ProgrammePropType required
     forYearNo Integer
     forSemesterNo Integer
-    /** semester->factor, semester->belong_to_part, general->how_many_parts */
     key String required
     value String required
 }
@@ -115,11 +105,8 @@ entity StudentModuleSelection {
     academicSemester Integer required
     yearNo Integer required
     semesterNo Integer required
-    /** null before module finished*/ 
     creditHour Double
-    /** null before module finished*/ 
     marks Double
-    /** null before module finished*/ 
     qcs Double
 }
 
@@ -146,7 +133,6 @@ service * with serviceClass
 microservice Student, StudentEnroll, StudentProgression with svcStudent
 microservice Faculty, Department, Programme, ProgrammeProp with svcProgramme
 microservice Module, StudentModuleSelection, ModuleGrade with svcModule
-//search * with elasticsearch
 
 application {
     config {
@@ -155,7 +141,6 @@ application {
         authenticationType uaa
         uaaBaseName "cloudauth"
         applicationType microservice
-        //searchEngine elasticsearch
         serviceDiscoveryType eureka
         buildTool gradle
         serverPort 8081
@@ -170,7 +155,6 @@ application {
         authenticationType uaa
         uaaBaseName "cloudauth"
         applicationType microservice
-        //searchEngine elasticsearch
         serviceDiscoveryType eureka
         buildTool gradle
         serverPort 8082
@@ -185,7 +169,6 @@ application {
         authenticationType uaa
         uaaBaseName "cloudauth"
         applicationType microservice
-        //searchEngine elasticsearch
         serviceDiscoveryType eureka
         buildTool gradle
         serverPort 8083
@@ -202,7 +185,6 @@ application {
         applicationType gateway
         serviceDiscoveryType eureka
         buildTool gradle
-        //skipClient true
     }
     entities *
 }
@@ -212,7 +194,6 @@ application {
         baseName cloudAuth
         packageName cc.orangejuice.srs.auth
         applicationType uaa
-        //searchEngine elasticsearch
         serviceDiscoveryType eureka
         buildTool gradle
     }
@@ -222,6 +203,4 @@ deployment {
     deploymentType docker-compose
     appsFolders [svcStudent, svcProgramme, svcModule, cloudGateway, cloudAuth]
     dockerRepositoryName "cherrymeteor"
-    //monitoring elk
-    //consoleOptions [curator, zipkin]
 }
